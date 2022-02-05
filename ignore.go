@@ -11,12 +11,47 @@ import (
 	"github.com/go-git/go-git/v5/storage/memory"
 )
 
-const RepoURL = "https://github.com/github/gitignore"
+const (
+	RepoURL            = "https://github.com/github/gitignore"
+	CommunityDirPrefix = "/community/"
+	GlobalDirPrefix    = "/Global/"
+	GitignoreExtension = ".gitignore"
+)
 
 type IgnoreFile struct {
 	Name string
 	Path string
 	Data string
+}
+
+func (i IgnoreFile) SplitPath() []string {
+	var dirs []string
+	p, _ := path.Split(i.Path)
+	for !(p == "" || p == "." || p == "/") {
+		var d string
+		p, d = path.Split(p)
+		dirs = append(dirs, d)
+	}
+	return dirs
+}
+
+func (i IgnoreFile) IsCommunity() bool {
+	return strings.HasPrefix(i.Path, CommunityDirPrefix)
+}
+
+func (i IgnoreFile) IsGlobal() bool {
+	return strings.HasPrefix(i.Path, GlobalDirPrefix)
+}
+
+func (i IgnoreFile) GetLabel() string {
+	s := i.Name
+	if i.IsCommunity() {
+		s += " (community)"
+	}
+	if i.IsGlobal() {
+		s += " (global)"
+	}
+	return s
 }
 
 func AddIgnoreFiles(fs billy.Filesystem, p string) ([]IgnoreFile, error) {
@@ -37,15 +72,12 @@ func AddIgnoreFiles(fs billy.Filesystem, p string) ([]IgnoreFile, error) {
 			continue
 		}
 
-		// TODO: Check if this is a symlink
-		// ...
-
 		// Get the file info
 		n := f.Name()
 		ext := path.Ext(n)
 
 		// Confirm this is a .gitignore file
-		if ext != ".gitignore" {
+		if ext != GitignoreExtension {
 			continue
 		}
 
@@ -61,6 +93,7 @@ func AddIgnoreFiles(fs billy.Filesystem, p string) ([]IgnoreFile, error) {
 
 		// Read the file
 		data, err := io.ReadAll(o)
+		o.Close()
 		if err != nil {
 			return nil, err
 		}
